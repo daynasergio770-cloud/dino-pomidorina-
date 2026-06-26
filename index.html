@@ -516,25 +516,41 @@
     }
   });
 
-  // lift the cube just enough to clear the keyboard when typing the action
+  // Lift the cube so the focused action field sits well above the keyboard.
+  // visualViewport gives the keyboard top, but iOS adds a suggestions/accessory
+  // bar above it, so we add a generous safety gap and place the field in the
+  // upper part of the remaining space.
   let activeInput=null;
   function liftForKeyboard(){
     if(!activeInput) return;
+    // measure from the un-lifted state for stable math
+    const wasLifted=document.body.classList.contains('kb');
+    document.body.classList.remove('kb');
     const vv=window.visualViewport;
     const kbTop = vv ? (vv.height + vv.offsetTop) : window.innerHeight;
     const rect=activeInput.getBoundingClientRect();
-    const margin=14;
-    const overlap=(rect.bottom + margin) - kbTop;
-    const lift=Math.max(0, overlap);
+    const gap=64; // covers iOS accessory/suggestions bar above the keyboard
+    const targetBottom = kbTop - gap;
+    let lift = Math.max(0, rect.bottom - targetBottom);
+    // don't push the field above ~20% from the top of the screen
+    const minTopForField = window.innerHeight*0.18 + rect.height;
+    const maxLift = Math.max(0, rect.bottom - minTopForField);
+    lift = Math.min(lift, maxLift);
     document.body.style.setProperty('--kb-lift', lift+'px');
     document.body.classList.add('kb');
   }
   document.querySelectorAll('.actinput').forEach(inp=>{
-    inp.addEventListener('focus',()=>{ activeInput=inp; setTimeout(liftForKeyboard,300); });
+    inp.addEventListener('focus',()=>{
+      activeInput=inp;
+      // wait for the keyboard to animate in, then measure twice for reliability
+      setTimeout(liftForKeyboard,250);
+      setTimeout(liftForKeyboard,550);
+    });
     inp.addEventListener('blur',()=>{ activeInput=null; document.body.classList.remove('kb'); document.body.style.setProperty('--kb-lift','0px'); });
   });
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize',()=>{ if(activeInput) liftForKeyboard(); });
+    window.visualViewport.addEventListener('scroll',()=>{ if(activeInput) liftForKeyboard(); });
   }
 
   let toastT=null;
