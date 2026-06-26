@@ -73,6 +73,8 @@
 
   .startbtn{margin-top:18px;width:100%;border:none;border-radius:14px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s}
   .startbtn:active{transform:scale(.97)}
+  .startbtn:disabled{opacity:.4;cursor:default}
+  .startbtn:disabled:active{transform:none}
   .f-blue .startbtn{background:var(--blue)}
   .f-green .startbtn{background:var(--green)}
   .f-red .startbtn{background:var(--red)}
@@ -114,10 +116,11 @@
   .sheethead h2{font-size:15px;letter-spacing:2px;text-transform:uppercase;font-weight:500}
   .closex{border:none;background:none;font-size:24px;color:var(--dim);cursor:pointer;line-height:1}
   .sheetsub{font-size:11px;color:var(--dim);margin-bottom:18px;letter-spacing:1px}
-  .dayhead{display:flex;justify-content:space-between;align-items:baseline;margin:20px 0 4px;padding-bottom:6px}
-  .dayhead:first-child{margin-top:0}
-  .dayhead .dl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--ink);font-weight:500}
-  .dayhead .dt{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .dayhead{display:flex;align-items:baseline;gap:10px;width:100%;margin:6px 0 0;padding:14px 0;background:none;border:none;border-top:1px solid var(--line);font-family:inherit;cursor:pointer;text-align:left}
+  .dayhead:first-of-type{border-top:none;margin-top:0}
+  .dayhead .chev{font-size:13px;color:var(--dim);width:12px;flex:0 0 auto}
+  .dayhead .dl{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink);font-weight:500;flex:1}
+  .dayhead .dt{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
   .actstat{padding:13px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:12px}
   .actstat .nm{font-size:14px;color:var(--ink);word-break:break-word;flex:1}
   .actstat .mn{font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -281,8 +284,15 @@
 
   document.querySelectorAll('.actinput').forEach(inp=>{
     const k=inp.dataset.act; inp.value = store.acts[k]||'';
-    inp.addEventListener('input',()=>{ store.acts[k]=inp.value; save(); });
+    inp.addEventListener('input',()=>{ store.acts[k]=inp.value; save(); refreshStartButtons(); });
   });
+  function refreshStartButtons(){
+    document.querySelectorAll('.startbtn').forEach(btn=>{
+      const key=btn.dataset.start;
+      const filled=(store.acts[key]||'').trim().length>0;
+      btn.disabled=!filled;
+    });
+  }
   let customMin = store.custom||30;
   const customNum=document.getElementById('customNum');
   customNum.textContent=customMin;
@@ -399,6 +409,11 @@
       store.actMin[act]=(store.actMin[act]||0)+mins;
       if(!store.log) store.log=[];
       store.log.push({ts:Date.now(), act:act, min:mins, key:runKey});
+      // clear the action label on that face so the next run starts fresh
+      store.acts[runKey]='';
+      const inp=document.querySelector('.actinput[data-act="'+runKey+'"]');
+      if(inp) inp.value='';
+      refreshStartButtons();
       save(); buzz(); showToast('Done · +'+mins+' min');
     }
     runner.classList.remove('on');
@@ -448,13 +463,13 @@
   document.getElementById('tomato').addEventListener('click',()=>{renderSheet();sheet.classList.add('on');});
   document.getElementById('closeSheet').addEventListener('click',()=>sheet.classList.remove('on'));
   sheet.addEventListener('click',e=>{if(e.target===sheet)sheet.classList.remove('on');});
+  let openDays={}; // which day rows are expanded
   function renderSheet(){
     const box=document.getElementById('actStats');box.innerHTML='';
     const log=(store.log||[]);
     if(!log.length){
       box.innerHTML='<div class="emptystate">Nothing yet.<br>Finish your first timer and your minutes will show up here, grouped by day.</div>';
     }else{
-      // group by day (newest first), then by action within the day
       const byDay={};
       log.forEach(e=>{
         const d=new Date(e.ts);
@@ -463,22 +478,28 @@
       });
       const days=Object.keys(byDay).sort().reverse();
       const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      // expand the most recent day by default the first time
+      if(Object.keys(openDays).length===0 && days[0]) openDays[days[0]]=true;
       days.forEach(dayKey=>{
         const entries=byDay[dayKey];
-        // sum per action for this day
         const perAct={};
         entries.forEach(e=>{ perAct[e.act]=(perAct[e.act]||0)+e.min; });
         const dayTotal=entries.reduce((a,e)=>a+e.min,0);
         const d=new Date(entries[0].ts);
         const label=d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear();
-        const head=document.createElement('div');head.className='dayhead';
-        head.innerHTML='<span class="dl">'+label+'</span><span class="dt">'+human(dayTotal)+'</span>';
+        const isOpen=!!openDays[dayKey];
+        const head=document.createElement('button');head.className='dayhead'+(isOpen?' open':'');
+        head.innerHTML='<span class="chev">'+(isOpen?'\u2304':'\u203a')+'</span>'+
+          '<span class="dl">'+label+'</span><span class="dt">'+human(dayTotal)+'</span>';
+        head.addEventListener('click',()=>{ openDays[dayKey]=!openDays[dayKey]; renderSheet(); });
         box.appendChild(head);
-        Object.entries(perAct).sort((a,b)=>b[1]-a[1]).forEach(([name,mins])=>{
-          const row=document.createElement('div');row.className='actstat';
-          row.innerHTML='<span class="nm">'+escapeHtml(name)+'</span><span class="mn">'+human(mins)+'</span>';
-          box.appendChild(row);
-        });
+        if(isOpen){
+          Object.entries(perAct).sort((a,b)=>b[1]-a[1]).forEach(([name,mins])=>{
+            const row=document.createElement('div');row.className='actstat';
+            row.innerHTML='<span class="nm">'+escapeHtml(name)+'</span><span class="mn">'+human(mins)+'</span>';
+            box.appendChild(row);
+          });
+        }
       });
     }
     const tot=(store.log||[]).reduce((a,e)=>a+e.min,0);
@@ -522,7 +543,7 @@
     clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1800);
   }
 
-  render(); renderStats();
+  render(); renderStats(); refreshStartButtons();
 })();
 </script>
 </body>
