@@ -13,7 +13,7 @@
     --blue:#3b6fe0;--green:#2fae6b;--red:#e3514b;--orange:#f0892e;--yellow:#f2c33d;--sky:#46b6e0;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
-  html,body{height:100%}
+  html,body{height:100%;position:fixed;inset:0;width:100%;overflow:hidden;overscroll-behavior:none}
   body{
     background:var(--bg);color:var(--ink);
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -24,28 +24,37 @@
   }
   @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
-  .topbar{flex:0 0 auto;padding:max(18px,env(safe-area-inset-top)) 20px 8px;display:flex;align-items:center;justify-content:flex-end}
-  .tomato{width:42px;height:42px;border:1px solid var(--line);border-radius:50%;background:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .15s ease}
+  .topbar{flex:0 0 auto;padding:max(18px,env(safe-area-inset-top)) 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .navspacer{width:48px;flex:0 0 auto}
+  .facenav{display:flex;gap:7px;flex:0 1 auto;justify-content:center}
+  .fbtn{width:30px;height:30px;border-radius:7px;border:1.5px solid var(--c);background:transparent;
+    color:var(--ink);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;
+    display:grid;place-items:center;padding:0;transition:transform .12s ease,background .15s ease;
+    -webkit-tap-highlight-color:transparent}
+  .fbtn:active{transform:scale(.88)}
+  .fbtn.active{background:var(--c);color:#fff}
+  .tomato{width:48px;height:48px;border:1px solid var(--line);border-radius:50%;background:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .15s ease;box-shadow:0 6px 18px -12px rgba(0,0,0,.4);flex:0 0 auto}
   .tomato:active{transform:scale(.9)}
   .tomato svg{display:block}
 
-  .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;position:relative;perspective:1100px;transition:transform .25s ease}
-  body.kb .stage{transform:translateY(calc(var(--kb-lift,0px) * -1))}
-  .rig{position:relative;width:min(74vw,290px);height:min(74vw,290px)}
+  .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;position:relative;perspective:1200px;transition:transform .25s ease}
+  /* Typing mode: flat face pinned to top, above the keyboard. */
+  .stage.editing{perspective:none;align-items:flex-start;padding-top:14px}
+  .rig{position:relative;width:min(74vw,290px);height:min(74vw,290px);touch-action:none;cursor:grab}
+  .rig:active{cursor:grabbing}
 
-  .arrow{position:absolute;width:46px;height:46px;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;z-index:5;color:var(--ink);transition:transform .15s ease,opacity .15s}
-  .arrow:active{transform:scale(.86)}
-  .arrow.up{top:-66px;left:50%;margin-left:-23px}
-  .arrow.down{bottom:-66px;left:50%;margin-left:-23px}
-  .arrow.left{left:-66px;top:50%;margin-top:-23px}
-  .arrow.right{right:-66px;top:50%;margin-top:-23px}
-  .arrow svg{width:20px;height:20px;display:block}
-
-  .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1)}
+  .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1);will-change:transform}
+  .cube.editing{transform:none!important;transform-style:flat;transition:none;height:auto;position:relative;inset:auto}
+  .cube.editing .face{display:none}
+  .cube.editing .editface{
+    display:flex;position:relative;inset:auto;
+    transform:none!important;min-height:236px;
+    -webkit-backface-visibility:visible;backface-visibility:visible;
+  }
   .face{
-    position:absolute;inset:0;border-radius:26px;background:#fff;border:1px solid var(--line);
+    position:absolute;inset:0;border-radius:12px;background:#fff;border:1px solid var(--line);
     box-shadow:0 18px 40px -28px rgba(0,0,0,.35);display:flex;flex-direction:column;
-    padding:24px 20px 20px;overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden;
+    padding:24px 22px 22px;overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden;
   }
   .face.f-blue  {transform:rotateY(0deg)   translateZ(var(--tz))}
   .face.f-green {transform:rotateY(90deg)  translateZ(var(--tz))}
@@ -54,13 +63,16 @@
   .face.f-top   {transform:rotateX(90deg)  translateZ(var(--tz))}
   .face.f-bottom{transform:rotateX(-90deg) translateZ(var(--tz))}
 
-  .accent{position:absolute;left:0;top:0;height:5px;width:100%}
-  .f-blue   .accent{background:var(--blue)}
-  .f-green  .accent{background:var(--green)}
-  .f-red    .accent{background:var(--red)}
-  .f-orange .accent{background:var(--orange)}
-  .f-top    .accent{background:var(--sky)}
-  .f-bottom .accent{background:var(--yellow)}
+  /* Nothing-style accent: a dotted/dot-matrix bar instead of a solid stripe. */
+  .accent{position:absolute;left:22px;right:22px;top:18px;height:6px;
+    background-image:radial-gradient(currentColor 1.6px,transparent 1.7px);
+    background-size:9px 6px;background-repeat:repeat-x;opacity:.9}
+  .f-blue   .accent{color:var(--blue)}
+  .f-green  .accent{color:var(--green)}
+  .f-red    .accent{color:var(--red)}
+  .f-orange .accent{color:var(--orange)}
+  .f-top    .accent{color:var(--sky)}
+  .f-bottom .accent{color:var(--yellow)}
 
   .bigtime{font-size:64px;font-weight:500;line-height:1;margin-top:auto;letter-spacing:-1px;font-variant-numeric:tabular-nums}
   .bigtime .u{font-size:15px;color:var(--dim);letter-spacing:1px;margin-left:6px}
@@ -71,7 +83,7 @@
   .actinput:focus{border-color:var(--ink)}
   .actinput::placeholder{color:#cfcfcf}
 
-  .startbtn{margin-top:18px;width:100%;border:none;border-radius:14px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s}
+  .startbtn{margin-top:18px;width:100%;border:none;border-radius:10px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s}
   .startbtn:active{transform:scale(.97)}
   .startbtn:disabled{opacity:.4;cursor:default}
   .startbtn:disabled:active{transform:none}
@@ -82,7 +94,7 @@
   .f-top .startbtn{background:var(--sky)}
 
   .stepper{display:flex;align-items:center;gap:14px;margin-top:auto}
-  .stepbtn{width:48px;height:48px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:24px;color:var(--ink);cursor:pointer;display:grid;place-items:center;font-family:inherit;transition:transform .12s}
+  .stepbtn{width:48px;height:48px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:24px;color:var(--ink);cursor:pointer;display:grid;place-items:center;font-family:inherit;transition:transform .12s}
   .stepbtn:active{transform:scale(.9)}
   .customval{flex:1;text-align:center;font-size:46px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
   .customval .u{font-size:13px;color:var(--dim);display:block;letter-spacing:2px;margin-top:4px}
@@ -104,7 +116,7 @@
   .ring svg{transform:rotate(-90deg);width:100%;height:100%}
   .ring .runtime{position:absolute;inset:0;display:grid;place-items:center;font-size:54px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-1px}
   .runctrl{display:flex;gap:14px;margin-top:34px}
-  .rbtn{border:1px solid var(--line);background:#fff;border-radius:14px;padding:14px 26px;font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--ink);transition:transform .12s}
+  .rbtn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:14px 26px;font-family:inherit;font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--ink);transition:transform .12s}
   .rbtn:active{transform:scale(.95)}
   .rbtn.stop{border-color:var(--red);color:var(--red)}
 
@@ -140,6 +152,15 @@
 <body>
 
   <div class="topbar">
+    <div class="navspacer"></div>
+    <div class="facenav" id="faceNav">
+      <button class="fbtn" data-go="blue"   style="--c:var(--blue)">5</button>
+      <button class="fbtn" data-go="green"  style="--c:var(--green)">25</button>
+      <button class="fbtn" data-go="red"    style="--c:var(--red)">40</button>
+      <button class="fbtn" data-go="orange" style="--c:var(--orange)">60</button>
+      <button class="fbtn" data-go="custom" style="--c:var(--sky)">∿</button>
+      <button class="fbtn" data-go="stats"  style="--c:var(--yellow)">∑</button>
+    </div>
     <div class="tomato" id="tomato" aria-label="Statistics">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <path d="M12 7c-3.3 0-6 2.4-6 5.6C6 16.5 9 19 12 19s6-2.5 6-6.4C18 9.4 15.3 7 12 7Z" fill="#e3514b"/>
@@ -151,18 +172,6 @@
 
   <div class="stage">
     <div class="rig" id="rig">
-      <button class="arrow up" id="aUp" aria-label="Up">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="arrow down" id="aDown" aria-label="Down">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M6 13l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="arrow left" id="aLeft" aria-label="Left">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="arrow right" id="aRight" aria-label="Right">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
 
       <div class="cube" id="cube">
         <div class="face f-blue" data-key="blue">
@@ -266,6 +275,11 @@
 
 <script>
 (function(){
+  // Block page drag/rubber-band so vertical cube spins don't move the page.
+  // Allow scrolling inside the stats sheet.
+  document.addEventListener('touchmove',function(e){
+    if(!e.target.closest('.sheetcard')) e.preventDefault();
+  },{passive:false});
   document.getElementById('rig').style.setProperty('--tz', "min(37vw,145px)");
   const cube = document.getElementById('cube');
 
@@ -297,58 +311,93 @@
   const customNum=document.getElementById('customNum');
   customNum.textContent=customMin;
 
-  // ---- rotation ----
-  // Sides live on a ring rotated only around Y. Top/bottom are reached by
-  // tilting X by +/-90 WITHOUT touching Y, so their text never mirrors.
-  const sideOrder=['blue','green','red','orange'];
-  // Y angle that brings each side to front (cube rotateY = -faceY)
-  const sideY={blue:0,green:-90,red:-180,orange:90};
-  let curY=0;          // accumulated Y (continuous, for nice spin direction)
-  let curX=0;          // 0 = sides, +90 = show top(custom), -90 = show bottom(stats)
-  let activeKey='blue';
-  let lastSide='blue'; // remember which side to return to
-
+  // ---- rotation (free drag + magnetic snap) ----
+  // Each key maps to the cube orientation that brings its face to the front.
+  const ORIENT={
+    blue:  {x:0,   y:0},
+    green: {x:0,   y:-90},
+    red:   {x:0,   y:-180},
+    orange:{x:0,   y:90},
+    custom:{x:-90, y:0},   // top face
+    stats: {x:90,  y:0},   // bottom face
+  };
+  const KEYS=['blue','green','red','orange','custom','stats'];
+  let curX=0, curY=0, activeKey='blue', lastSide='blue';
   function render(){ cube.style.transform=`rotateX(${curX}deg) rotateY(${curY}deg)`; }
 
+  // Used by the timer code AND the top face-nav buttons to jump to a face.
   function showSide(key){
-    // pick nearest equivalent Y so the spin is short and directional
-    let target = sideY[key];
-    // bring target into the same revolution neighborhood as curY
-    let base = Math.round(curY/360)*360;
-    let cand = base + target;
-    const opts=[cand-360,cand,cand+360];
-    let best=opts[0];
-    for(const o of opts){ if(Math.abs(o-curY)<Math.abs(best-curY)) best=o; }
-    curY=best; curX=0; activeKey=key; lastSide=key; render();
-  }
-  function stepSide(dir){
-    const i=(sideOrder.indexOf(lastSide)+dir+4)%4;
-    const key=sideOrder[i];
-    curY += (dir>0? -90 : 90); // turn the cube so the next side slides in from that direction
-    curX=0; activeKey=key; lastSide=key; render();
+    const o=ORIENT[key];
+    let base=Math.round((curY-o.y)/360)*360;
+    curY=o.y+base; curX=o.x; activeKey=key;
+    if(['blue','green','red','orange'].includes(key)) lastSide=key;
+    cube.style.transition='transform .55s cubic-bezier(.34,1.56,.5,1)';
+    render();
+    if(key==='stats') renderStats();
+    updateNav();
   }
 
-  document.getElementById('aRight').addEventListener('click',()=>{
-    if(curX!==0){ curX=0; activeKey=lastSide; render(); return; }
-    stepSide(+1);
+  // Highlight the active face button in the top row.
+  const faceNav=document.getElementById('faceNav');
+  function updateNav(){
+    faceNav.querySelectorAll('.fbtn').forEach(b=>{
+      b.classList.toggle('active', b.dataset.go===activeKey);
+    });
+  }
+  faceNav.querySelectorAll('.fbtn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      showSide(b.dataset.go);
+      try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
+    });
   });
-  document.getElementById('aLeft').addEventListener('click',()=>{
-    if(curX!==0){ curX=0; activeKey=lastSide; render(); return; }
-    stepSide(-1);
-  });
-  // Top/bottom faces are fixed to the cube in one orientation. To keep their
-  // text upright regardless of which side we came from, snap Y to a multiple
-  // of 360 (the "blue" orientation) before tilting on X.
-  function snapY(){ curY = Math.round(curY/360)*360; lastSide='blue'; }
 
-  document.getElementById('aUp').addEventListener('click',()=>{
-    if(curX!==0){ curX=0; activeKey=lastSide; render(); return; } // back to side
-    snapY(); curX=90; activeKey='custom'; render(); // tilt up to reveal top (custom)
+  const rig=document.getElementById('rig');
+  let dragging=false, sx=0, sy=0, bX=0, bY=0, moved=false;
+  rig.addEventListener('pointerdown',e=>{
+    if(cube.classList.contains('editing')) return;
+    dragging=true; moved=false;
+    sx=e.clientX; sy=e.clientY; bX=curX; bY=curY;
+    try{ rig.setPointerCapture(e.pointerId); }catch(_){}
+    cube.style.transition='none';
   });
-  document.getElementById('aDown').addEventListener('click',()=>{
-    if(curX!==0){ curX=0; activeKey=lastSide; render(); return; } // back to side
-    renderStats(); snapY(); curX=-90; activeKey='stats'; render(); // tilt down to reveal bottom (stats)
+  rig.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy;
+    if(Math.abs(dx)+Math.abs(dy)>4) moved=true;
+    curY=bY+dx*0.6;
+    curX=bX-dy*0.6;
+    curX=Math.max(-135,Math.min(135,curX));
+    render();
   });
+  function endDrag(){
+    if(!dragging) return;
+    dragging=false;
+    // Springy, magnetic snap: overshoots a touch then settles — reads clearly
+    // as "clicking into place".
+    cube.style.transition='transform .55s cubic-bezier(.34,1.56,.5,1)';
+    snapToNearest();
+  }
+  rig.addEventListener('pointerup',endDrag);
+  rig.addEventListener('pointercancel',endDrag);
+
+  function angDist(a,b){ return Math.abs(((a-b)%360+540)%360-180); }
+  function snapToNearest(){
+    let best=null,bestCost=1e9,bestKey='blue';
+    for(const k of KEYS){
+      const o=ORIENT[k];
+      const ty=o.y+Math.round((curY-o.y)/360)*360;
+      const cost=angDist(curX,o.x)+angDist(curY,ty);
+      if(cost<bestCost){ bestCost=cost; best={x:o.x,y:ty}; bestKey=k; }
+    }
+    const changed=(curX!==best.x || curY!==best.y);
+    curX=best.x; curY=best.y; activeKey=bestKey;
+    if(['blue','green','red','orange'].includes(bestKey)) lastSide=bestKey;
+    if(bestKey==='stats') renderStats();
+    render();
+    updateNav();
+    // tiny haptic tick on lock-in (where supported)
+    if(changed){ try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){} }
+  }
 
   // ---- custom stepper ----
   document.getElementById('customPlus').addEventListener('click',()=>{
@@ -371,6 +420,7 @@
 
   document.querySelectorAll('.startbtn').forEach(btn=>{
     btn.addEventListener('click',()=>{
+      ensureAudio();
       const key=btn.dataset.start;
       const mins = key==='custom' ? customMin : parseInt(btn.dataset.min,10);
       startTimer(key,mins,(store.acts[key]||'').trim());
@@ -414,7 +464,7 @@
       const inp=document.querySelector('.actinput[data-act="'+runKey+'"]');
       if(inp) inp.value='';
       refreshStartButtons();
-      save(); buzz(); showToast('Done · +'+mins+' min');
+      save(); buzz(); chime(); showToast('Done · +'+mins+' min');
     }
     runner.classList.remove('on');
   }
@@ -435,6 +485,26 @@
     finishTimer(false);
   });
   function buzz(){ try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){} }
+  let _actx=null;
+  function ensureAudio(){
+    try{ if(!_actx) _actx=new (window.AudioContext||window.webkitAudioContext)();
+      if(_actx.state==='suspended') _actx.resume(); }catch(e){}
+    return _actx;
+  }
+  function chime(){
+    const ctx=ensureAudio(); if(!ctx) return;
+    const now=ctx.currentTime, master=ctx.createGain();
+    master.gain.value=0.9; master.connect(ctx.destination);
+    [880,1760].forEach((f,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type='sine'; o.frequency.value=f;
+      const peak=i===0?0.5:0.18;
+      g.gain.setValueAtTime(0.0001,now);
+      g.gain.exponentialRampToValueAtTime(peak,now+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001,now+1.6);
+      o.connect(g); g.connect(master); o.start(now); o.stop(now+1.7);
+    });
+  }
 
   // ---- stats face ----
   const faceMeta=[
@@ -516,42 +586,23 @@
     }
   });
 
-  // Lift the cube so the focused action field sits well above the keyboard.
-  // visualViewport gives the keyboard top, but iOS adds a suggestions/accessory
-  // bar above it, so we add a generous safety gap and place the field in the
-  // upper part of the remaining space.
-  let activeInput=null;
-  function liftForKeyboard(){
-    if(!activeInput) return;
-    // measure from the un-lifted state for stable math
-    const wasLifted=document.body.classList.contains('kb');
-    document.body.classList.remove('kb');
-    const vv=window.visualViewport;
-    const kbTop = vv ? (vv.height + vv.offsetTop) : window.innerHeight;
-    const rect=activeInput.getBoundingClientRect();
-    const gap=64; // covers iOS accessory/suggestions bar above the keyboard
-    const targetBottom = kbTop - gap;
-    let lift = Math.max(0, rect.bottom - targetBottom);
-    // don't push the field above ~20% from the top of the screen
-    const minTopForField = window.innerHeight*0.18 + rect.height;
-    const maxLift = Math.max(0, rect.bottom - minTopForField);
-    lift = Math.min(lift, maxLift);
-    document.body.style.setProperty('--kb-lift', lift+'px');
-    document.body.classList.add('kb');
-  }
+  // ---- typing: flatten the active face (proven typable in tests) ----
+  // On focus we drop 3D and show the focused face as a flat card pinned to the
+  // top, above the keyboard. Works identically on every face.
+  const stageEl=document.querySelector('.stage');
   document.querySelectorAll('.actinput').forEach(inp=>{
+    const face=inp.closest('.face');
     inp.addEventListener('focus',()=>{
-      activeInput=inp;
-      // wait for the keyboard to animate in, then measure twice for reliability
-      setTimeout(liftForKeyboard,250);
-      setTimeout(liftForKeyboard,550);
+      face.classList.add('editface');
+      cube.classList.add('editing');
+      stageEl.classList.add('editing');
     });
-    inp.addEventListener('blur',()=>{ activeInput=null; document.body.classList.remove('kb'); document.body.style.setProperty('--kb-lift','0px'); });
+    inp.addEventListener('blur',()=>{
+      cube.classList.remove('editing');
+      stageEl.classList.remove('editing');
+      face.classList.remove('editface');
+    });
   });
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize',()=>{ if(activeInput) liftForKeyboard(); });
-    window.visualViewport.addEventListener('scroll',()=>{ if(activeInput) liftForKeyboard(); });
-  }
 
   let toastT=null;
   function showToast(msg){
@@ -559,7 +610,7 @@
     clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1800);
   }
 
-  render(); renderStats(); refreshStartButtons();
+  render(); renderStats(); refreshStartButtons(); updateNav();
 })();
 </script>
 </body>
