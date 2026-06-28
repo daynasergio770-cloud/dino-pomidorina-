@@ -27,10 +27,7 @@
   .topbar{flex:0 0 auto;padding:max(18px,env(safe-area-inset-top)) 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
   .navspacer{width:48px;flex:0 0 auto}
   .facenav{display:flex;gap:7px;flex:0 1 auto;justify-content:center}
-  .fbtn{width:30px;height:30px;border-radius:7px;border:1.5px solid var(--c);background:transparent;
-    color:var(--ink);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;
-    display:grid;place-items:center;padding:0;transition:transform .12s ease,background .15s ease;
-    -webkit-tap-highlight-color:transparent}
+  .fbtn{width:30px;height:30px;border-radius:7px;border:1.5px solid var(--c);background:transparent;color:var(--ink);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;display:grid;place-items:center;padding:0;transition:transform .12s ease,background .15s ease;-webkit-tap-highlight-color:transparent}
   .fbtn:active{transform:scale(.88)}
   .fbtn.active{background:var(--c);color:#fff}
   .tomato{width:48px;height:48px;border:1px solid var(--line);border-radius:50%;background:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .15s ease;box-shadow:0 6px 18px -12px rgba(0,0,0,.4);flex:0 0 auto}
@@ -38,17 +35,21 @@
   .tomato svg{display:block}
 
   .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;position:relative;perspective:1200px;transition:transform .25s ease}
-  /* Typing mode: flat face pinned to top, above the keyboard. */
+  /* Typing mode: flat face pinned to top, above the keyboard.
+     The perspective normally shrinks the 3D face a bit; with perspective off the
+     flat face would look bigger, causing a size "jump". We pin it to a width
+     that matches the perceived 3D size so there's no jump in or out. */
   .stage.editing{perspective:none;align-items:flex-start;padding-top:14px}
   .rig{position:relative;width:min(74vw,290px);height:min(74vw,290px);touch-action:none;cursor:grab}
+  .rig.editing-rig{width:min(64vw,250px)}
   .rig:active{cursor:grabbing}
 
   .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1);will-change:transform}
   .cube.editing{transform:none!important;transform-style:flat;transition:none;height:auto;position:relative;inset:auto}
   .cube.editing .face{display:none}
   .cube.editing .editface{
-    display:flex;position:relative;inset:auto;
-    transform:none!important;min-height:236px;
+    display:flex;position:relative;inset:auto;width:100%;
+    transform:none!important;min-height:210px;
     -webkit-backface-visibility:visible;backface-visibility:visible;
   }
   .face{
@@ -325,7 +326,7 @@
   let curX=0, curY=0, activeKey='blue', lastSide='blue';
   function render(){ cube.style.transform=`rotateX(${curX}deg) rotateY(${curY}deg)`; }
 
-  // Used by the timer code AND the top face-nav buttons to jump to a face.
+  // Used by the timer code to jump to a face programmatically.
   function showSide(key){
     const o=ORIENT[key];
     let base=Math.round((curY-o.y)/360)*360;
@@ -336,13 +337,9 @@
     if(key==='stats') renderStats();
     updateNav();
   }
-
-  // Highlight the active face button in the top row.
   const faceNav=document.getElementById('faceNav');
   function updateNav(){
-    faceNav.querySelectorAll('.fbtn').forEach(b=>{
-      b.classList.toggle('active', b.dataset.go===activeKey);
-    });
+    faceNav.querySelectorAll('.fbtn').forEach(b=>b.classList.toggle('active', b.dataset.go===activeKey));
   }
   faceNav.querySelectorAll('.fbtn').forEach(b=>{
     b.addEventListener('click',()=>{
@@ -418,12 +415,21 @@
   let totalSec=0,leftSec=0,tick=null,paused=false,runKey=null,endAt=0;
   const fmt=s=>{const m=Math.floor(s/60),ss=s%60;return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');};
 
+  let startingTimer=false;
   document.querySelectorAll('.startbtn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    // pointerdown fires before the input's blur, so the first tap starts the
+    // timer instead of being spent on collapsing the editing card.
+    btn.addEventListener('pointerdown',e=>{
+      if(btn.disabled) return;
+      e.preventDefault();
       ensureAudio();
+      startingTimer=true;
       const key=btn.dataset.start;
       const mins = key==='custom' ? customMin : parseInt(btn.dataset.min,10);
+      const active=document.activeElement;
+      if(active && active.blur) active.blur();
       startTimer(key,mins,(store.acts[key]||'').trim());
+      startingTimer=false;
     });
   });
 
@@ -590,17 +596,26 @@
   // On focus we drop 3D and show the focused face as a flat card pinned to the
   // top, above the keyboard. Works identically on every face.
   const stageEl=document.querySelector('.stage');
+  const rigEl=document.getElementById('rig');
   document.querySelectorAll('.actinput').forEach(inp=>{
     const face=inp.closest('.face');
     inp.addEventListener('focus',()=>{
       face.classList.add('editface');
       cube.classList.add('editing');
       stageEl.classList.add('editing');
+      rigEl.classList.add('editing-rig');
     });
     inp.addEventListener('blur',()=>{
       cube.classList.remove('editing');
       stageEl.classList.remove('editing');
       face.classList.remove('editface');
+      rigEl.classList.remove('editing-rig');
+      // Re-seat the cube dead-on the active face so its size stays consistent
+      // after typing — but NOT when starting the timer (that would eat the tap).
+      if(!startingTimer){
+        const key=face.dataset.key;
+        if(key) showSide(key);
+      }
     });
   });
 
