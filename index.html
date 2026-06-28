@@ -41,7 +41,9 @@
      that matches the perceived 3D size so there's no jump in or out. */
   .stage.editing{perspective:none;align-items:flex-start;padding-top:14px}
   .rig{position:relative;width:min(74vw,290px);height:min(74vw,290px);touch-action:none;cursor:grab}
-  .rig.editing-rig{width:min(64vw,250px)}
+  /* Don't change rig width while typing — keep it identical to the resting
+     size so there's no size jump entering/leaving the editing state. */
+  .rig.editing-rig{width:min(74vw,290px)}
   .rig:active{cursor:grabbing}
 
   .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1);will-change:transform}
@@ -440,6 +442,13 @@
   function startTimer(key,mins,act){
     runKey=key; totalSec=mins*60; leftSec=totalSec; paused=false;
     endAt=Date.now()+totalSec*1000;
+    // Make sure the cube isn't left in flat editing state behind the timer
+    // screen (otherwise it reappears enlarged after Stop).
+    cube.classList.remove('editing');
+    stageEl.classList.remove('editing');
+    rigEl.classList.remove('editing-rig');
+    document.querySelectorAll('.face.editface').forEach(f=>f.classList.remove('editface'));
+    render();
     ringProg.setAttribute('stroke',colorByKey[key]);
     runAct.textContent=act||'—';
     ringProg.style.strokeDashoffset='0';
@@ -473,6 +482,18 @@
       save(); buzz(); chime(); showToast('Done · +'+mins+' min');
     }
     runner.classList.remove('on');
+    // Fully reset any lingering editing/flat state so the cube returns at its
+    // original size (not enlarged). Clear inline styles the editing mode may
+    // have left, then re-seat the cube dead-on the face we ran.
+    cube.classList.remove('editing');
+    stageEl.classList.remove('editing');
+    rigEl.classList.remove('editing-rig');
+    document.querySelectorAll('.face.editface').forEach(f=>f.classList.remove('editface'));
+    // force a clean reflow of the cube transform
+    cube.style.transition='transform .4s ease';
+    if(runKey){ const o=ORIENT[runKey]; let base=Math.round((curY-o.y)/360)*360; curY=o.y+base; curX=o.x; activeKey=runKey; if(['blue','green','red','orange'].includes(runKey)) lastSide=runKey; }
+    render();
+    updateNav();
   }
   document.getElementById('pauseBtn').addEventListener('click',function(){
     paused=!paused;
