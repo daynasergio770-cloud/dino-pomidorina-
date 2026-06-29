@@ -103,7 +103,7 @@
 
   .actwrap{margin-top:16px;position:relative;z-index:1}
   .actlabel{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
-  .actinput{width:100%;min-height:34px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:14px;color:var(--ink);padding:5px 0;outline:none;-webkit-user-select:text;user-select:text;border-radius:0}
+  .actinput{width:100%;min-height:34px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:14px;color:var(--ink);caret-color:auto;padding:5px 0;outline:none;-webkit-user-select:text;user-select:text;border-radius:0;-webkit-appearance:none;appearance:none;transform:translateZ(0)}
   .actinput:focus{border-color:var(--face-accent,var(--ink));box-shadow:0 4px 0 -3px var(--face-accent,var(--ink))}
   .actinput::placeholder{color:var(--placeholder)}
   .face.typing-face .actlabel{color:var(--ink)}
@@ -414,25 +414,15 @@
     if(Math.abs(lift)<1) stageEl.style.removeProperty('--stage-y');
     else stageEl.style.setProperty('--stage-y',lift+'px');
   }
-  function activeActionInput(){
-    return document.querySelector('.face[data-key="'+activeKey+'"] .actinput');
+  function blurActiveActionInput(){
+    const active=document.activeElement;
+    if(active && active.matches('.actinput')) active.blur();
   }
-  function focusInputAtPoint(e){
-    if(e.target.closest('input,button')) return false;
-    const inp=activeActionInput();
-    if(!inp) return false;
-    const r=inp.getBoundingClientRect();
-    const padX=16, padY=12;
-    const inside=e.clientX>=r.left-padX && e.clientX<=r.right+padX &&
-      e.clientY>=r.top-padY && e.clientY<=r.bottom+padY;
-    if(!inside) return false;
-    e.preventDefault();
-    e.stopPropagation();
-    enterTypingMode(inp);
-    return true;
-  }
+  document.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.actinput')) return;
+    blurActiveActionInput();
+  },true);
   rig.addEventListener('pointerdown',e=>{
-    if(focusInputAtPoint(e)) return;
     if(e.target.closest('input,button')) return;
     dragging=true; moved=false;
     sx=e.clientX; sy=e.clientY; bX=curX; bY=curY;
