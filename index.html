@@ -377,6 +377,7 @@
     stats: {x:90,  y:0},   // bottom face
   };
   const KEYS=['blue','green','red','orange','custom','stats'];
+  const DEFAULT_CUBE_TRANSITION='transform .5s cubic-bezier(.34,1.15,.5,1)';
   let curX=0, curY=0, activeKey='blue', lastSide='blue';
   function render(){ cube.style.transform=`rotateX(${curX}deg) rotateY(${curY}deg)`; }
 
@@ -412,14 +413,20 @@
   const rig=rigEl;
   let dragging=false, sx=0, sy=0, bX=0, bY=0, moved=false;
   let stageLift=0, visibilityT=null;
-  function setStageLift(lift){
+  function setStageLift(lift,instant=false){
     stageLift=lift;
+    const prevTransition=stageEl.style.transition;
+    if(instant) stageEl.style.transition='none';
     if(Math.abs(lift)<1) stageEl.style.removeProperty('--stage-y');
     else stageEl.style.setProperty('--stage-y',lift+'px');
+    if(instant){
+      void stageEl.offsetHeight;
+      stageEl.style.transition=prevTransition;
+    }
   }
-  function scheduleInputVisibility(inp){
+  function scheduleInputVisibility(inp,delay=80){
     clearTimeout(visibilityT);
-    visibilityT=setTimeout(()=>{ if(activeInput===inp) keepInputVisible(inp); },360);
+    visibilityT=setTimeout(()=>{ if(activeInput===inp) keepInputVisible(inp); },delay);
   }
   function hasTouchKeyboard(){
     return !!(navigator.maxTouchPoints>0 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
@@ -431,7 +438,7 @@
     const rect=(face || editor).getBoundingClientRect();
     const projectedBottom=window.innerHeight*0.57;
     const overflow=Math.max(0,rect.bottom-projectedBottom);
-    if(overflow>0) setStageLift(-Math.min(overflow,130));
+    if(overflow>0) setStageLift(-Math.min(overflow,130),true);
   }
   function blurActiveActionInput(){
     const active=document.activeElement;
@@ -454,7 +461,12 @@
       enterTypingMode(inp);
       return;
     }
-    blurActiveActionInput();
+    const active=document.activeElement;
+    if(active && active.matches('.actinput')){
+      active.blur();
+      if(e.target.closest('.rig') && !e.target.closest('button')) e.stopPropagation();
+      return;
+    }
   },true);
   rig.addEventListener('pointerdown',e=>{
     if(e.target.closest('input,button')) return;
@@ -719,6 +731,14 @@
   function needsFlatEdit(inp){
     return !!(inp && FLAT_EDIT_KEYS.has(inp.dataset.act));
   }
+  function leaveFlatEditWithoutSpin(){
+    if(!cube.classList.contains('flat-edit')) return;
+    cube.style.transition='none';
+    cube.classList.remove('flat-edit');
+    render();
+    void cube.offsetHeight;
+    cube.style.transition=DEFAULT_CUBE_TRANSITION;
+  }
   function enterTypingMode(inp){
     const face=inp.closest('.face');
     if(!face) return;
@@ -750,7 +770,7 @@
   function exitTypingMode(){
     activeInput=null;
     clearTimeout(visibilityT);
-    cube.classList.remove('flat-edit');
+    leaveFlatEditWithoutSpin();
     setStageLift(0);
     document.querySelectorAll('.face.typing-face').forEach(f=>f.classList.remove('typing-face'));
   }
@@ -769,18 +789,19 @@
     setStageLift(lift);
   }
   if(window.visualViewport){
-    window.visualViewport.addEventListener('resize',()=>{ if(activeInput) scheduleInputVisibility(activeInput); });
-    window.visualViewport.addEventListener('scroll',()=>{ if(activeInput) scheduleInputVisibility(activeInput); });
+    window.visualViewport.addEventListener('resize',()=>{ if(activeInput) scheduleInputVisibility(activeInput,30); });
+    window.visualViewport.addEventListener('scroll',()=>{ if(activeInput) scheduleInputVisibility(activeInput,30); });
   }
   document.querySelectorAll('.actinput').forEach(inp=>{
     inp.addEventListener('pointerdown',e=>{
-      if(needsFlatEdit(inp)){
+      const shouldManualFocus=needsFlatEdit(inp) || (hasTouchKeyboard() && document.activeElement!==inp);
+      if(shouldManualFocus){
         e.preventDefault();
         e.stopPropagation();
         enterTypingMode(inp);
         return;
       }
-      cube.classList.remove('flat-edit');
+      leaveFlatEditWithoutSpin();
       activeInput=inp;
       inp.focus({preventScroll:true});
     });
