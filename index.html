@@ -298,7 +298,10 @@
         <div class="gl">Total</div>
         <div class="gv" id="sheetTotal">0<span>min</span></div>
       </div>
+      <button class="resetbtn" id="exportBtn">Export statistics</button>
+      <button class="resetbtn" id="importBtn">Import / restore statistics</button>
       <button class="resetbtn" id="resetBtn">Reset all statistics</button>
+      <input id="importFile" type="file" accept="application/json,.json" hidden>
     </div>
   </div>
 
@@ -340,16 +343,113 @@
 
   // ---- persistence ----
   const KEY='pomocube_v2';
-  let store = {
-    faceCount:{blue:0,green:0,red:0,orange:0,custom:0},
-    faceMin:{blue:0,green:0,red:0,orange:0,custom:0},
-    actMin:{}, acts:{blue:'',green:'',red:'',orange:'',custom:''}, custom:30, log:[]
-  };
-  try{
-    const raw = localStorage.getItem(KEY);
-    if(raw) Object.assign(store, JSON.parse(raw));
-  }catch(e){}
-  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){} }
+  const STORAGE_VERSION=1;
+  const FACE_KEYS=['blue','green','red','orange','custom'];
+  function emptyFaceMap(){return {blue:0,green:0,red:0,orange:0,custom:0};}
+  function emptyActs(){return {blue:'',green:'',red:'',orange:'',custom:''};}
+  function defaultStore(){
+    return {
+      version:STORAGE_VERSION,
+      faceCount:emptyFaceMap(),
+      faceMin:emptyFaceMap(),
+      actMin:{},
+      acts:emptyActs(),
+      custom:30,
+      log:[]
+    };
+  }
+  function isPlainObject(value){
+    return !!value && typeof value==='object' && !Array.isArray(value);
+  }
+  function safeInt(value,min,max,fallback){
+    const n=Number(value);
+    if(!Number.isFinite(n)) return fallback;
+    return Math.max(min,Math.min(max,Math.round(n)));
+  }
+  function cleanFaceMap(value){
+    const out=emptyFaceMap();
+    if(isPlainObject(value)){
+      FACE_KEYS.forEach(k=>{ out[k]=safeInt(value[k],0,Number.MAX_SAFE_INTEGER,0); });
+    }
+    return out;
+  }
+  function cleanActs(value){
+    const out=emptyActs();
+    if(isPlainObject(value)){
+      FACE_KEYS.forEach(k=>{ if(value[k]!=null) out[k]=String(value[k]); });
+    }
+    return out;
+  }
+  function cleanActMin(value){
+    const out={};
+    if(isPlainObject(value)){
+      Object.keys(value).forEach(k=>{
+        const name=String(k).trim();
+        const minutes=safeInt(value[k],0,Number.MAX_SAFE_INTEGER,0);
+        if(name && minutes>0) out[name]=minutes;
+      });
+    }
+    return out;
+  }
+  function cleanLog(value){
+    if(!Array.isArray(value)) return [];
+    const out=[];
+    value.forEach(item=>{
+      if(!isPlainObject(item)) return;
+      const ts=Number(item.ts);
+      const min=safeInt(item.min,1,Number.MAX_SAFE_INTEGER,0);
+      const key=FACE_KEYS.includes(item.key) ? item.key : '';
+      const act=String(item.act||'(no label)').trim()||'(no label)';
+      if(Number.isFinite(ts) && ts>0 && min>0 && key) out.push({ts,act,min,key});
+    });
+    return out;
+  }
+  function summariesFromLog(log){
+    const faceCount=emptyFaceMap();
+    const faceMin=emptyFaceMap();
+    const actMin={};
+    log.forEach(item=>{
+      faceCount[item.key]=(faceCount[item.key]||0)+1;
+      faceMin[item.key]=(faceMin[item.key]||0)+item.min;
+      actMin[item.act]=(actMin[item.act]||0)+item.min;
+    });
+    return {faceCount,faceMin,actMin};
+  }
+  function normalizeStore(value){
+    const out=defaultStore();
+    if(!isPlainObject(value)) return out;
+    out.faceCount=cleanFaceMap(value.faceCount);
+    out.faceMin=cleanFaceMap(value.faceMin);
+    out.actMin=cleanActMin(value.actMin);
+    out.acts=cleanActs(value.acts);
+    out.custom=safeInt(value.custom,1,180,30);
+    out.log=cleanLog(value.log);
+    if(out.log.length){
+      const rebuilt=summariesFromLog(out.log);
+      out.faceCount=rebuilt.faceCount;
+      out.faceMin=rebuilt.faceMin;
+      out.actMin=rebuilt.actMin;
+    }
+    out.version=STORAGE_VERSION;
+    return out;
+  }
+  function loadStore(){
+    try{
+      const raw=localStorage.getItem(KEY);
+      if(raw) return normalizeStore(JSON.parse(raw));
+    }catch(e){}
+    return defaultStore();
+  }
+  let store=loadStore();
+  function save(){
+    store=normalizeStore(store);
+    try{
+      localStorage.setItem(KEY,JSON.stringify(store));
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
 
   document.querySelectorAll('.actinput').forEach(inp=>{
     const k=inp.dataset.act; inp.value = store.acts[k]||'';
@@ -365,6 +465,16 @@
   let customMin = store.custom||30;
   const customNum=document.getElementById('customNum');
   customNum.textContent=customMin;
+  function applyStoreToControls(){
+    document.querySelectorAll('.actinput').forEach(inp=>{
+      const k=inp.dataset.act;
+      inp.value=store.acts[k]||'';
+    });
+    customMin=store.custom||30;
+    customNum.textContent=customMin;
+    refreshStartButtons();
+    renderStats();
+  }
 
   // ---- rotation (free drag + magnetic snap) ----
   // Each key maps to the cube orientation that brings its face to the front.
@@ -722,6 +832,67 @@
   }
   function human(mins){const h=Math.floor(mins/60),m=mins%60;return h?(h+' h '+m+' min'):(m+' min');}
   function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+  function exportStats(){
+    try{
+      const safeStore=normalizeStore(store);
+      const payload={
+        app:'pomocube',
+        kind:'statistics-backup',
+        version:STORAGE_VERSION,
+        exportedAt:new Date().toISOString(),
+        store:safeStore
+      };
+      const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const stamp=new Date().toISOString().slice(0,10);
+      a.href=url;
+      a.download='pomocube-statistics-'+stamp+'.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
+      showToast('Export ready');
+    }catch(e){
+      showToast('Export failed');
+    }
+  }
+  function looksLikeStoreData(value){
+    if(!isPlainObject(value)) return false;
+    return ['faceCount','faceMin','actMin','acts','custom','log'].some(k=>Object.prototype.hasOwnProperty.call(value,k));
+  }
+  function storeFromImport(value){
+    const candidate=isPlainObject(value) && looksLikeStoreData(value.store) ? value.store : value;
+    if(!looksLikeStoreData(candidate)) throw new Error('Unknown backup format');
+    return normalizeStore(candidate);
+  }
+  document.getElementById('exportBtn').addEventListener('click',exportStats);
+  document.getElementById('importBtn').addEventListener('click',()=>{
+    document.getElementById('importFile').click();
+  });
+  document.getElementById('importFile').addEventListener('change',e=>{
+    const file=e.target.files && e.target.files[0];
+    e.target.value='';
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onerror=()=>showToast('Import failed');
+    reader.onload=()=>{
+      try{
+        const next=storeFromImport(JSON.parse(String(reader.result||'')));
+        const total=(next.log||[]).reduce((a,item)=>a+item.min,0);
+        const ok=confirm('Import this backup? This will replace current local statistics on this device. Total: '+human(total)+'.');
+        if(!ok) return;
+        store=next;
+        const saved=save();
+        openDays={};
+        applyStoreToControls();
+        renderSheet();
+        showToast(saved?'Statistics restored':'Restored for this session');
+      }catch(err){
+        showToast('Import failed');
+      }
+    };
+    reader.readAsText(file);
+  });
 
   document.getElementById('resetBtn').addEventListener('click',()=>{
     if(confirm('Reset all statistics? This cannot be undone.')){
