@@ -71,6 +71,9 @@
   .rig:active{cursor:grabbing}
 
   .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1);will-change:transform}
+  .cube.flat-edit{transform:rotateX(0deg) rotateY(0deg)!important;transition:none!important}
+  .cube.flat-edit .face{opacity:0;pointer-events:none}
+  .cube.flat-edit .face.typing-face{opacity:1;pointer-events:auto;transform:translateZ(var(--tz))!important}
   .face{
     position:absolute;inset:0;border-radius:10px;background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border:1px solid var(--line);
     box-shadow:0 22px 46px -34px rgba(0,0,0,.48);display:flex;flex-direction:column;
@@ -104,15 +107,9 @@
   .actwrap{margin-top:16px;position:relative;z-index:1}
   .actlabel{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
   .actinput{width:100%;min-height:34px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:14px;color:var(--ink);padding:5px 0;outline:none;-webkit-user-select:text;user-select:text;border-radius:0}
-  .actinput.proxy-active{caret-color:transparent!important;border-bottom-color:var(--face-accent,var(--line))!important;box-shadow:0 4px 0 -3px var(--face-accent,var(--line))!important}
-  .actinput.proxy-active.proxy-has-value{color:transparent!important}
-  .actinput.proxy-active.proxy-has-value::placeholder{color:transparent!important}
   .actinput:focus{border-color:var(--face-accent,var(--ink));box-shadow:0 4px 0 -3px var(--face-accent,var(--ink))}
   .actinput::placeholder{color:var(--placeholder)}
   .face.typing-face .actlabel{color:var(--ink)}
-  .typing-proxy{position:fixed;left:0;top:0;width:0;height:34px;z-index:35;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;line-height:normal;padding:5px 0;outline:none;border-radius:0;-webkit-user-select:text;user-select:text;caret-color:var(--ink);opacity:0;pointer-events:none;transform:translate3d(-9999px,-9999px,0)}
-  .typing-proxy.on{opacity:1;pointer-events:auto}
-  .typing-proxy::placeholder{color:transparent}
 
   .startbtn{margin-top:18px;width:100%;border:none;border-radius:8px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s,filter .15s}
   .startbtn:active{transform:scale(.97)}
@@ -306,7 +303,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <input class="typing-proxy" id="typingProxy" autocomplete="off" autocapitalize="sentences" spellcheck="false">
 
 <script>
 (function(){
@@ -318,7 +314,6 @@
   const cube = document.getElementById('cube');
   const stageEl=document.querySelector('.stage');
   const rigEl=document.getElementById('rig');
-  const typingProxy=document.getElementById('typingProxy');
   const themeToggle=document.getElementById('themeToggle');
   const themeMeta=document.querySelector('meta[name="theme-color"]');
   const THEME_KEY='pomocube_theme';
@@ -407,7 +402,7 @@
   faceNav.querySelectorAll('.fbtn').forEach(b=>{
     b.addEventListener('click',()=>{
       const active=document.activeElement;
-      if(active && (active.matches('.actinput') || active===typingProxy)) active.blur();
+      if(active && active.matches('.actinput')) active.blur();
       exitTypingMode();
       showSide(b.dataset.go);
       try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
@@ -431,7 +426,7 @@
   }
   function preLiftForKeyboard(inp){
     if(window.innerWidth>600 || !hasTouchKeyboard() || stageLift<0) return;
-    const editor=proxyTarget || inp;
+    const editor=inp;
     const face=editor && editor.closest ? editor.closest('.face') : null;
     const rect=(face || editor).getBoundingClientRect();
     const projectedBottom=window.innerHeight*0.57;
@@ -440,7 +435,7 @@
   }
   function blurActiveActionInput(){
     const active=document.activeElement;
-    if(active && (active.matches('.actinput') || active===typingProxy)) active.blur();
+    if(active && active.matches('.actinput')) active.blur();
   }
   function inputAtPoint(e){
     const inp=document.querySelector('.face[data-key="'+activeKey+'"] .actinput');
@@ -451,7 +446,7 @@
     return inside ? inp : null;
   }
   document.addEventListener('pointerdown',e=>{
-    if(e.target.closest('.actinput') || e.target===typingProxy) return;
+    if(e.target.closest('.actinput')) return;
     const inp=inputAtPoint(e);
     if(inp){
       e.preventDefault();
@@ -538,7 +533,6 @@
       ensureAudio();
       const key=btn.dataset.start;
       const mins = key==='custom' ? customMin : parseInt(btn.dataset.min,10);
-      commitTypingProxy();
       const active=document.activeElement;
       if(active && active.blur) active.blur();
       startTimer(key,mins,(store.acts[key]||'').trim());
@@ -719,62 +713,11 @@
     }
   });
 
-  // ---- typing: edit directly on the visible cube face ----
-  const PROXY_INPUT_KEYS=new Set(['green','orange','custom']);
-  let activeInput=null, proxyTarget=null;
-  function shouldUseTypingProxy(inp){
-    return !!(inp && PROXY_INPUT_KEYS.has(inp.dataset.act));
-  }
-  function placeTypingProxy(){
-    if(!proxyTarget || !typingProxy.classList.contains('on')) return;
-    const rect=proxyTarget.getBoundingClientRect();
-    const cs=getComputedStyle(proxyTarget);
-    typingProxy.style.left=rect.left+'px';
-    typingProxy.style.top=rect.top+'px';
-    typingProxy.style.width=rect.width+'px';
-    typingProxy.style.height=rect.height+'px';
-    typingProxy.style.fontSize=cs.fontSize;
-    typingProxy.style.padding=cs.padding;
-    typingProxy.style.transform='translate3d(0,0,0)';
-  }
-  function commitTypingProxy(){
-    if(!proxyTarget) return;
-    if(proxyTarget.value!==typingProxy.value){
-      proxyTarget.value=typingProxy.value;
-      proxyTarget.dispatchEvent(new Event('input',{bubbles:true}));
-    }
-    proxyTarget.classList.toggle('proxy-has-value',typingProxy.value.length>0);
-  }
-  function openTypingProxy(inp){
-    if(proxyTarget && proxyTarget!==inp) closeTypingProxy();
-    proxyTarget=inp;
-    activeInput=typingProxy;
-    typingProxy.value=inp.value;
-    typingProxy.placeholder=inp.placeholder||'';
-    typingProxy.dataset.act=inp.dataset.act||'';
-    inp.classList.add('proxy-active');
-    inp.classList.toggle('proxy-has-value',inp.value.length>0);
-    typingProxy.classList.add('on');
-    preLiftForKeyboard(inp);
-    placeTypingProxy();
-    typingProxy.focus({preventScroll:true});
-    const end=typingProxy.value.length;
-    try{ typingProxy.setSelectionRange(end,end); }catch(_){}
-    requestAnimationFrame(placeTypingProxy);
-    scheduleInputVisibility(typingProxy);
-  }
-  function closeTypingProxy(opts={}){
-    commitTypingProxy();
-    if(opts.blur && document.activeElement===typingProxy){
-      try{ typingProxy.blur(); }catch(_){}
-    }
-    if(proxyTarget) proxyTarget.classList.remove('proxy-active','proxy-has-value');
-    proxyTarget=null;
-    typingProxy.classList.remove('on');
-    typingProxy.value='';
-    typingProxy.placeholder='';
-    typingProxy.removeAttribute('data-act');
-    typingProxy.style.transform='translate3d(-9999px,-9999px,0)';
+  // ---- typing: use real inputs only; no floating caret/proxy layer ----
+  const FLAT_EDIT_KEYS=new Set(['green','orange','custom']);
+  let activeInput=null;
+  function needsFlatEdit(inp){
+    return !!(inp && FLAT_EDIT_KEYS.has(inp.dataset.act));
   }
   function enterTypingMode(inp){
     const face=inp.closest('.face');
@@ -792,13 +735,9 @@
     document.querySelectorAll('.face.typing-face').forEach(f=>f.classList.remove('typing-face'));
     face.classList.add('typing-face');
     const sameInput=activeInput===inp;
-    if(!sameInput) setStageLift(0);
-    if(shouldUseTypingProxy(inp)){
-      openTypingProxy(inp);
-      return;
-    }
-    closeTypingProxy();
     activeInput=inp;
+    cube.classList.toggle('flat-edit',needsFlatEdit(inp));
+    if(!sameInput) setStageLift(0);
     const focusedByUs=document.activeElement!==inp;
     if(focusedByUs){
       preLiftForKeyboard(inp);
@@ -809,26 +748,25 @@
     scheduleInputVisibility(inp);
   }
   function exitTypingMode(){
-    closeTypingProxy({blur:true});
     activeInput=null;
     clearTimeout(visibilityT);
+    cube.classList.remove('flat-edit');
     setStageLift(0);
     document.querySelectorAll('.face.typing-face').forEach(f=>f.classList.remove('typing-face'));
   }
   function keepInputVisible(inp){
     if(!inp) return;
-    if(document.activeElement!==inp && document.activeElement!==typingProxy) return;
+    if(document.activeElement!==inp) return;
     const vv=window.visualViewport;
     const visibleBottom=vv ? vv.offsetTop+vv.height : window.innerHeight;
-    const editor=proxyTarget || inp;
-    const face=(proxyTarget || inp).closest ? (proxyTarget || inp).closest('.face') : null;
+    const editor=inp;
+    const face=inp.closest ? inp.closest('.face') : null;
     const rect=(face || editor).getBoundingClientRect();
     const margin=window.innerWidth<=600 ? 16 : 34;
     const naturalBottom=rect.bottom-stageLift;
     const overflow=Math.max(0,naturalBottom-(visibleBottom-margin));
     const lift=overflow>10 ? -overflow : 0;
     setStageLift(lift);
-    requestAnimationFrame(placeTypingProxy);
   }
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize',()=>{ if(activeInput) scheduleInputVisibility(activeInput); });
@@ -836,13 +774,13 @@
   }
   document.querySelectorAll('.actinput').forEach(inp=>{
     inp.addEventListener('pointerdown',e=>{
-      if(shouldUseTypingProxy(inp)){
+      if(needsFlatEdit(inp)){
         e.preventDefault();
         e.stopPropagation();
         enterTypingMode(inp);
         return;
       }
-      closeTypingProxy();
+      cube.classList.remove('flat-edit');
       activeInput=inp;
       inp.focus({preventScroll:true});
     });
@@ -853,21 +791,6 @@
         if(!document.activeElement || !document.activeElement.matches('.actinput')) exitTypingMode();
       },0);
     });
-  });
-  typingProxy.addEventListener('input',()=>{
-    commitTypingProxy();
-    scheduleInputVisibility(typingProxy);
-  });
-  typingProxy.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){
-      e.preventDefault();
-      typingProxy.blur();
-    }
-  });
-  typingProxy.addEventListener('blur',()=>{
-    setTimeout(()=>{
-      if(document.activeElement!==typingProxy) exitTypingMode();
-    },0);
   });
 
   let toastT=null;
