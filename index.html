@@ -578,20 +578,26 @@
   }
   function finishTimer(completed){
     clearInterval(tick);tick=null;
+    let completedMins=0;
     if(completed){
-      const mins=Math.round(totalSec/60);
+      completedMins=Math.round(totalSec/60);
       store.faceCount[runKey]=(store.faceCount[runKey]||0)+1;
-      store.faceMin[runKey]=(store.faceMin[runKey]||0)+mins;
+      store.faceMin[runKey]=(store.faceMin[runKey]||0)+completedMins;
       const act=(store.acts[runKey]||'').trim()||'(no label)';
-      store.actMin[act]=(store.actMin[act]||0)+mins;
+      store.actMin[act]=(store.actMin[act]||0)+completedMins;
       if(!store.log) store.log=[];
-      store.log.push({ts:Date.now(), act:act, min:mins, key:runKey});
-      // clear the action label on that face so the next run starts fresh
+      store.log.push({ts:Date.now(), act:act, min:completedMins, key:runKey});
+    }
+    if(runKey){
+      // clear the action label after either a completed or cancelled timer
       store.acts[runKey]='';
       const inp=document.querySelector('.actinput[data-act="'+runKey+'"]');
       if(inp) inp.value='';
       refreshStartButtons();
-      save(); buzz(); chime(); showToast('Done · +'+mins+' min');
+      save();
+    }
+    if(completed){
+      buzz(); chime(); showToast('Done · +'+completedMins+' min');
     }
     runner.classList.remove('on');
     // Fully reset any lingering typing state, then re-seat the cube dead-on the
