@@ -39,15 +39,10 @@
   .tomato svg{display:block}
 
   .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;position:relative;perspective:1200px;transition:transform .25s ease;transform:translateY(var(--stage-y,0));padding-bottom:18px}
-  .stage.typing{--stage-y:0px}
   .rig{position:relative;width:var(--cube-size);height:var(--cube-size);touch-action:none;cursor:grab;flex:0 0 auto}
-  .rig.typing-rig{cursor:text;touch-action:manipulation}
   .rig:active{cursor:grabbing}
-  .rig.typing-rig:active{cursor:text}
 
   .cube{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.34,1.15,.5,1);will-change:transform}
-  .cube.typing{transition:transform .28s cubic-bezier(.22,.8,.25,1)}
-  .cube.typing .face:not(.typing-face){pointer-events:none}
   .face{
     position:absolute;inset:0;border-radius:10px;background:linear-gradient(180deg,#fff 0%,#fbfbf8 100%);border:1px solid var(--line);
     box-shadow:0 22px 46px -34px rgba(0,0,0,.48);display:flex;flex-direction:column;
@@ -83,20 +78,7 @@
   .actinput{width:100%;min-height:34px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:14px;color:var(--ink);padding:5px 0;outline:none;-webkit-user-select:text;user-select:text;border-radius:0}
   .actinput:focus{border-color:var(--face-accent,var(--ink));box-shadow:0 4px 0 -3px var(--face-accent,var(--ink))}
   .actinput::placeholder{color:#cfcfcf}
-  .actinput.proxy-active{color:var(--ink)!important;caret-color:transparent!important;border-bottom-color:var(--face-accent,var(--line))!important;box-shadow:0 4px 0 -3px var(--face-accent,var(--line))!important}
-  .actinput.proxy-active::placeholder{color:#cfcfcf!important}
   .face.typing-face .actlabel{color:var(--ink)}
-  .typing-proxy{
-    position:fixed;left:0;top:0;width:0;height:34px;z-index:35;
-    border:none;
-    background:transparent;color:transparent;font-family:inherit;font-size:14px;
-    line-height:normal;padding:5px 0;outline:none;border-radius:0;
-    -webkit-user-select:text;user-select:text;caret-color:var(--ink);
-    opacity:0;pointer-events:none;transform:translate3d(-9999px,-9999px,0);
-    box-shadow:none;
-  }
-  .typing-proxy.on{opacity:1;pointer-events:auto}
-  .typing-proxy::placeholder{color:transparent}
 
   .startbtn{margin-top:18px;width:100%;border:none;border-radius:8px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s,filter .15s}
   .startbtn:active{transform:scale(.97)}
@@ -287,7 +269,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <input class="typing-proxy" id="typingProxy" autocomplete="off" autocapitalize="sentences" spellcheck="false">
 
 <script>
 (function(){
@@ -299,7 +280,6 @@
   const cube = document.getElementById('cube');
   const stageEl=document.querySelector('.stage');
   const rigEl=document.getElementById('rig');
-  const typingProxy=document.getElementById('typingProxy');
 
   // ---- persistence ----
   const KEY='pomocube_v2';
@@ -345,7 +325,7 @@
 
   // Used by the timer code to jump to a face programmatically.
   function showSide(key){
-    if(!['green','orange','custom'].includes(key)) exitTypingMode();
+    exitTypingMode();
     const o=ORIENT[key];
     let base=Math.round((curY-o.y)/360)*360;
     curY=o.y+base; curX=o.x; activeKey=key;
@@ -365,7 +345,7 @@
   faceNav.querySelectorAll('.fbtn').forEach(b=>{
     b.addEventListener('click',()=>{
       const active=document.activeElement;
-      if(active && (active.matches('.actinput') || active===typingProxy)) active.blur();
+      if(active && active.matches('.actinput')) active.blur();
       exitTypingMode();
       showSide(b.dataset.go);
       try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
@@ -374,15 +354,11 @@
 
   const rig=rigEl;
   let dragging=false, sx=0, sy=0, bX=0, bY=0, moved=false;
-  const PROXY_INPUT_KEYS=new Set(['green','orange','custom']);
   let stageLift=0;
   function setStageLift(lift){
     stageLift=lift;
     if(Math.abs(lift)<1) stageEl.style.removeProperty('--stage-y');
     else stageEl.style.setProperty('--stage-y',lift+'px');
-  }
-  function shouldUseTypingProxy(inp){
-    return !!(inp && PROXY_INPUT_KEYS.has(inp.dataset.act));
   }
   function activeActionInput(){
     return document.querySelector('.face[data-key="'+activeKey+'"] .actinput');
@@ -403,7 +379,6 @@
   }
   rig.addEventListener('pointerdown',e=>{
     if(focusInputAtPoint(e)) return;
-    if(cube.classList.contains('typing')) return;
     if(e.target.closest('input,button')) return;
     dragging=true; moved=false;
     sx=e.clientX; sy=e.clientY; bX=curX; bY=curY;
@@ -477,7 +452,6 @@
       ensureAudio();
       const key=btn.dataset.start;
       const mins = key==='custom' ? customMin : parseInt(btn.dataset.min,10);
-      commitTypingProxy();
       const active=document.activeElement;
       if(active && active.blur) active.blur();
       startTimer(key,mins,(store.acts[key]||'').trim());
@@ -655,10 +629,7 @@
   });
 
   // ---- typing: edit directly on the visible cube face ----
-  // Native carets are unreliable on rotated 3D inputs in mobile browsers. During
-  // editing we place a real 2D input exactly over the face's action line, while
-  // keeping the stored value in the original face input.
-  let activeInput=null, proxyTarget=null;
+  let activeInput=null;
   function enterTypingMode(inp){
     const face=inp.closest('.face');
     if(!face) return;
@@ -674,153 +645,49 @@
     }
     document.querySelectorAll('.face.typing-face').forEach(f=>f.classList.remove('typing-face'));
     face.classList.add('typing-face');
-    if(shouldUseTypingProxy(inp)){
-      cube.classList.add('typing');
-      stageEl.classList.add('typing');
-      rigEl.classList.add('typing-rig');
-      openTypingProxy(inp);
-    }else{
-      closeTypingProxy();
-      activeInput=inp;
-      cube.classList.remove('typing');
-      stageEl.classList.remove('typing');
-      setStageLift(0);
-      rigEl.classList.remove('typing-rig');
-      if(document.activeElement!==inp){
-        inp.focus({preventScroll:true});
-        const end=inp.value.length;
-        try{ inp.setSelectionRange(end,end); }catch(_){}
-      }
+    const sameInput=activeInput===inp;
+    activeInput=inp;
+    if(!sameInput) setStageLift(0);
+    const focusedByUs=document.activeElement!==inp;
+    if(focusedByUs){
+      inp.focus({preventScroll:true});
+      const end=inp.value.length;
+      try{ inp.setSelectionRange(end,end); }catch(_){}
     }
-  }
-  function openTypingProxy(inp){
-    if(proxyTarget && proxyTarget!==inp) closeTypingProxy();
-    proxyTarget=inp;
-    activeInput=typingProxy;
-    typingProxy.value=inp.value;
-    typingProxy.placeholder=inp.placeholder||'';
-    typingProxy.dataset.act=inp.dataset.act||'';
-    const face=inp.closest('.face');
-    const accent=getComputedStyle(face).getPropertyValue('--face-accent').trim() || 'var(--ink)';
-    typingProxy.style.setProperty('--proxy-accent',accent);
-    inp.classList.add('proxy-active');
-    typingProxy.classList.add('on');
-    setStageLift(0);
-    placeTypingProxy();
-    typingProxy.focus({preventScroll:true});
-    const end=typingProxy.value.length;
-    try{ typingProxy.setSelectionRange(end,end); }catch(_){}
-    requestAnimationFrame(()=>{ keepInputVisible(typingProxy); placeTypingProxy(); });
-    [80,240,520].forEach(ms=>setTimeout(()=>{ if(proxyTarget===inp){ keepInputVisible(typingProxy); placeTypingProxy(); } },ms));
-  }
-  function placeTypingProxy(){
-    if(!proxyTarget || !typingProxy.classList.contains('on')) return;
-    const rect=proxyTarget.getBoundingClientRect();
-    const cs=getComputedStyle(proxyTarget);
-    typingProxy.style.left=rect.left+'px';
-    typingProxy.style.top=rect.top+'px';
-    typingProxy.style.width=rect.width+'px';
-    typingProxy.style.height=rect.height+'px';
-    typingProxy.style.fontSize=cs.fontSize;
-    typingProxy.style.padding=cs.padding;
-    typingProxy.style.transform='translate3d(0,0,0)';
-  }
-  function commitTypingProxy(){
-    if(!proxyTarget) return;
-    if(proxyTarget.value!==typingProxy.value){
-      proxyTarget.value=typingProxy.value;
-      proxyTarget.dispatchEvent(new Event('input',{bubbles:true}));
-    }
-  }
-  function closeTypingProxy(opts={}){
-    commitTypingProxy();
-    if(opts.blur && document.activeElement===typingProxy){
-      try{ typingProxy.blur(); }catch(_){}
-    }
-    if(proxyTarget) proxyTarget.classList.remove('proxy-active');
-    proxyTarget=null;
-    typingProxy.classList.remove('on');
-    typingProxy.value='';
-    typingProxy.placeholder='';
-    typingProxy.style.transform='translate3d(-9999px,-9999px,0)';
-    typingProxy.removeAttribute('data-act');
+    requestAnimationFrame(()=>keepInputVisible(inp));
+    [80,240,520,900].forEach(ms=>setTimeout(()=>{ if(activeInput===inp) keepInputVisible(inp); },ms));
   }
   function exitTypingMode(){
-    closeTypingProxy({blur:true});
     activeInput=null;
-    cube.classList.remove('typing');
-    stageEl.classList.remove('typing');
     setStageLift(0);
-    rigEl.classList.remove('typing-rig');
     document.querySelectorAll('.face.typing-face').forEach(f=>f.classList.remove('typing-face'));
   }
   function keepInputVisible(inp){
     if(!inp) return;
-    const editor=proxyTarget || inp;
-    if(document.activeElement!==typingProxy && document.activeElement!==editor) return;
+    if(document.activeElement!==inp) return;
     const vv=window.visualViewport;
     const visibleBottom=vv ? vv.offsetTop+vv.height : window.innerHeight;
-    const rect=editor.getBoundingClientRect();
+    const rect=inp.getBoundingClientRect();
     const margin=34;
     const naturalBottom=rect.bottom-stageLift;
     const overflow=Math.max(0,naturalBottom-(visibleBottom-margin));
     const lift=overflow ? -(overflow+42) : 0;
     setStageLift(lift);
-    requestAnimationFrame(placeTypingProxy);
   }
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize',()=>{ if(activeInput) keepInputVisible(activeInput); });
     window.visualViewport.addEventListener('scroll',()=>{ if(activeInput) keepInputVisible(activeInput); });
   }
-  document.addEventListener('pointerdown',e=>{
-    if(typingProxy.classList.contains('on') && e.target!==typingProxy){
-      exitTypingMode();
-    }
-    if(e.target===typingProxy || e.target.closest('button')) return;
-    const inp=activeActionInput();
-    if(!inp) return;
-    const r=inp.getBoundingClientRect();
-    const padX=16, padY=12;
-    const inside=e.clientX>=r.left-padX && e.clientX<=r.right+padX &&
-      e.clientY>=r.top-padY && e.clientY<=r.bottom+padY;
-    if(!inside) return;
-    if(shouldUseTypingProxy(inp)){
-      e.preventDefault();
-      e.stopPropagation();
-      enterTypingMode(inp);
-    }else{
-      activeInput=inp;
-      inp.focus({preventScroll:true});
-    }
-  },true);
-  typingProxy.addEventListener('input',()=>{
-    commitTypingProxy();
-    keepInputVisible(typingProxy);
-  });
-  typingProxy.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){ e.preventDefault(); typingProxy.blur(); }
-  });
-  typingProxy.addEventListener('blur',()=>{
-    setTimeout(()=>{
-      if(document.activeElement!==typingProxy) exitTypingMode();
-    },0);
-  });
   document.querySelectorAll('.actinput').forEach(inp=>{
     inp.addEventListener('pointerdown',e=>{
-      if(shouldUseTypingProxy(inp)){
-        e.preventDefault();
-        e.stopPropagation();
-        enterTypingMode(inp);
-      }else{
-        activeInput=inp;
-        inp.focus({preventScroll:true});
-      }
+      activeInput=inp;
+      inp.focus({preventScroll:true});
     });
     inp.addEventListener('focus',()=>enterTypingMode(inp));
-    inp.addEventListener('input',()=>keepInputVisible(typingProxy));
+    inp.addEventListener('input',()=>keepInputVisible(inp));
     inp.addEventListener('blur',()=>{
       setTimeout(()=>{
-        if(document.activeElement!==typingProxy) exitTypingMode();
+        if(!document.activeElement || !document.activeElement.matches('.actinput')) exitTypingMode();
       },0);
     });
   });
