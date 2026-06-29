@@ -104,14 +104,15 @@
   .actwrap{margin-top:16px;position:relative;z-index:1}
   .actlabel{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
   .actinput{width:100%;min-height:34px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:14px;color:var(--ink);padding:5px 0;outline:none;-webkit-user-select:text;user-select:text;border-radius:0}
-  .actinput.proxy-active{color:transparent!important;caret-color:transparent!important;border-bottom-color:var(--face-accent,var(--line))!important;box-shadow:0 4px 0 -3px var(--face-accent,var(--line))!important}
-  .actinput.proxy-active::placeholder{color:transparent!important}
+  .actinput.proxy-active{caret-color:transparent!important;border-bottom-color:var(--face-accent,var(--line))!important;box-shadow:0 4px 0 -3px var(--face-accent,var(--line))!important}
+  .actinput.proxy-active.proxy-has-value{color:transparent!important}
+  .actinput.proxy-active.proxy-has-value::placeholder{color:transparent!important}
   .actinput:focus{border-color:var(--face-accent,var(--ink));box-shadow:0 4px 0 -3px var(--face-accent,var(--ink))}
   .actinput::placeholder{color:var(--placeholder)}
   .face.typing-face .actlabel{color:var(--ink)}
   .typing-proxy{position:fixed;left:0;top:0;width:0;height:34px;z-index:35;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;line-height:normal;padding:5px 0;outline:none;border-radius:0;-webkit-user-select:text;user-select:text;caret-color:var(--caret);opacity:0;pointer-events:none;transform:translate3d(-9999px,-9999px,0)}
   .typing-proxy.on{opacity:1;pointer-events:auto}
-  .typing-proxy::placeholder{color:var(--placeholder)}
+  .typing-proxy::placeholder{color:transparent}
 
   .startbtn{margin-top:18px;width:100%;border:none;border-radius:8px;padding:15px;font-family:inherit;font-size:14px;letter-spacing:3px;color:#fff;cursor:pointer;text-transform:uppercase;transition:transform .12s,filter .15s}
   .startbtn:active{transform:scale(.97)}
@@ -730,6 +731,7 @@
       proxyTarget.value=typingProxy.value;
       proxyTarget.dispatchEvent(new Event('input',{bubbles:true}));
     }
+    proxyTarget.classList.toggle('proxy-has-value',typingProxy.value.length>0);
   }
   function openTypingProxy(inp){
     if(proxyTarget && proxyTarget!==inp) closeTypingProxy();
@@ -739,6 +741,7 @@
     typingProxy.placeholder=inp.placeholder||'';
     typingProxy.dataset.act=inp.dataset.act||'';
     inp.classList.add('proxy-active');
+    inp.classList.toggle('proxy-has-value',inp.value.length>0);
     typingProxy.classList.add('on');
     placeTypingProxy();
     typingProxy.focus({preventScroll:true});
@@ -751,7 +754,7 @@
     if(opts.blur && document.activeElement===typingProxy){
       try{ typingProxy.blur(); }catch(_){}
     }
-    if(proxyTarget) proxyTarget.classList.remove('proxy-active');
+    if(proxyTarget) proxyTarget.classList.remove('proxy-active','proxy-has-value');
     proxyTarget=null;
     typingProxy.classList.remove('on');
     typingProxy.value='';
@@ -803,8 +806,9 @@
     const vv=window.visualViewport;
     const visibleBottom=vv ? vv.offsetTop+vv.height : window.innerHeight;
     const editor=proxyTarget || inp;
-    const rect=editor.getBoundingClientRect();
-    const margin=34;
+    const face=(proxyTarget || inp).closest ? (proxyTarget || inp).closest('.face') : null;
+    const rect=(face || editor).getBoundingClientRect();
+    const margin=window.innerWidth<=600 ? 44 : 34;
     const naturalBottom=rect.bottom-stageLift;
     const overflow=Math.max(0,naturalBottom-(visibleBottom-margin));
     const lift=overflow>18 ? -(overflow+24) : 0;
