@@ -22,7 +22,7 @@
   :root{
     color-scheme:light;
     --bg:#fdfdfb;--ink:#161616;--dim:#8e8e8e;--line:#e7e7e2;--soft:#f6f6f2;
-    --panel:#fff;--panel-2:#fbfbf8;--panel-soft:#f7f7f7;--placeholder:#cfcfcf;--caret:#0a84ff;
+    --panel:#fff;--panel-2:#fbfbf8;--panel-soft:#f7f7f7;--placeholder:#cfcfcf;
     --nav-bg:rgba(255,255,255,.72);--grid-line:rgba(0,0,0,.025);--dot-ink:rgba(22,22,22,.18);
     --face-ring:rgba(255,255,255,.88);--sheet-backdrop:rgba(0,0,0,.18);--toast-bg:#161616;--toast-ink:#fff;
     --blue:#3b6fe0;--green:#2fae6b;--red:#e3514b;--orange:#f0892e;--yellow:#f2c33d;--sky:#46b6e0;
@@ -31,7 +31,7 @@
   html[data-theme="dark"]{
     color-scheme:dark;
     --bg:#191918;--ink:#f0eee9;--dim:#a19d96;--line:#3b3a36;--soft:#24231f;
-    --panel:#22211f;--panel-2:#1d1c1a;--panel-soft:#2a2925;--placeholder:#77736c;--caret:#5aa2ff;
+    --panel:#22211f;--panel-2:#1d1c1a;--panel-soft:#2a2925;--placeholder:#77736c;
     --nav-bg:rgba(34,33,31,.78);--grid-line:rgba(255,255,255,.032);--dot-ink:rgba(240,238,233,.16);
     --face-ring:rgba(255,255,255,.08);--sheet-backdrop:rgba(0,0,0,.42);--toast-bg:#f0eee9;--toast-ink:#191918;
     --blue:#6d86d9;--green:#5da979;--red:#d66d68;--orange:#d78f52;--yellow:#d4b95f;--sky:#69aec9;
@@ -110,7 +110,7 @@
   .actinput:focus{border-color:var(--face-accent,var(--ink));box-shadow:0 4px 0 -3px var(--face-accent,var(--ink))}
   .actinput::placeholder{color:var(--placeholder)}
   .face.typing-face .actlabel{color:var(--ink)}
-  .typing-proxy{position:fixed;left:0;top:0;width:0;height:34px;z-index:35;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;line-height:normal;padding:5px 0;outline:none;border-radius:0;-webkit-user-select:text;user-select:text;caret-color:var(--caret);opacity:0;pointer-events:none;transform:translate3d(-9999px,-9999px,0)}
+  .typing-proxy{position:fixed;left:0;top:0;width:0;height:34px;z-index:35;border:none;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;line-height:normal;padding:5px 0;outline:none;border-radius:0;-webkit-user-select:text;user-select:text;caret-color:var(--ink);opacity:0;pointer-events:none;transform:translate3d(-9999px,-9999px,0)}
   .typing-proxy.on{opacity:1;pointer-events:auto}
   .typing-proxy::placeholder{color:transparent}
 
@@ -425,6 +425,18 @@
   function scheduleInputVisibility(inp){
     clearTimeout(visibilityT);
     visibilityT=setTimeout(()=>{ if(activeInput===inp) keepInputVisible(inp); },360);
+  }
+  function hasTouchKeyboard(){
+    return !!(navigator.maxTouchPoints>0 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
+  }
+  function preLiftForKeyboard(inp){
+    if(window.innerWidth>600 || !hasTouchKeyboard() || stageLift<0) return;
+    const editor=proxyTarget || inp;
+    const face=editor && editor.closest ? editor.closest('.face') : null;
+    const rect=(face || editor).getBoundingClientRect();
+    const projectedBottom=window.innerHeight*0.57;
+    const overflow=Math.max(0,rect.bottom-projectedBottom);
+    if(overflow>0) setStageLift(-Math.min(overflow,130));
   }
   function blurActiveActionInput(){
     const active=document.activeElement;
@@ -743,10 +755,12 @@
     inp.classList.add('proxy-active');
     inp.classList.toggle('proxy-has-value',inp.value.length>0);
     typingProxy.classList.add('on');
+    preLiftForKeyboard(inp);
     placeTypingProxy();
     typingProxy.focus({preventScroll:true});
     const end=typingProxy.value.length;
     try{ typingProxy.setSelectionRange(end,end); }catch(_){}
+    requestAnimationFrame(placeTypingProxy);
     scheduleInputVisibility(typingProxy);
   }
   function closeTypingProxy(opts={}){
@@ -787,6 +801,7 @@
     activeInput=inp;
     const focusedByUs=document.activeElement!==inp;
     if(focusedByUs){
+      preLiftForKeyboard(inp);
       inp.focus({preventScroll:true});
       const end=inp.value.length;
       try{ inp.setSelectionRange(end,end); }catch(_){}
@@ -808,10 +823,10 @@
     const editor=proxyTarget || inp;
     const face=(proxyTarget || inp).closest ? (proxyTarget || inp).closest('.face') : null;
     const rect=(face || editor).getBoundingClientRect();
-    const margin=window.innerWidth<=600 ? 44 : 34;
+    const margin=window.innerWidth<=600 ? 16 : 34;
     const naturalBottom=rect.bottom-stageLift;
     const overflow=Math.max(0,naturalBottom-(visibleBottom-margin));
-    const lift=overflow>18 ? -(overflow+24) : 0;
+    const lift=overflow>10 ? -overflow : 0;
     setStageLift(lift);
     requestAnimationFrame(placeTypingProxy);
   }
